@@ -2,3 +2,4 @@
 /build/
 *pycache*
 .idea/
+*.egg-info*
