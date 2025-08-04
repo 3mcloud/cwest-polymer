@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools==75.8.0", "setuptools-git-versioning >= 2"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[project]
+name = "cwest-polymer"
+authors = [
+    { name = "Cole Stapleton", email = "cstapleton@mmm.com" },
+    { name = "Matt Mills", email = "mmills2@mmm.com" }
+]
+description = "Functions to determine polymer groups within datasets using kendrick mass defect and mass remainder analysis."
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">=3.9, <3.13"
+
+license = { text = "Proprietary" }
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: Other/Proprietary",
+]
+
+dependencies = [
+    "bokeh",
+    "matplotlib",
+    "numpy",
+    "openpyxl",
+    "pandas",
+    "scikit-learn",
+    "scipy",
+    "molmass==2023.4.10",
+    "piblin ==0.0.0a1",
+    "plotly>=6.0.1"
+]
+
+[project.urls]
+Source = "https://github.com/3M-Cloud/piblin-kmd"
+Issues = "https://github.com/3M-Cloud/piblin-kmd/issues"
+Changelog = "https://github.com/3M-Cloud/piblin-kmd/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+tests = [
+    "pytest==8.3.4",
+    "pytest-mpl==0.17.0",
+    "pytest-cov==6.0.0",
+    "pytest-html==4.1.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
