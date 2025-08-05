@@ -44,9 +44,8 @@ dependencies = [
 ]
 
 [project.urls]
-Source = "https://github.com/3M-Cloud/piblin-kmd"
-Issues = "https://github.com/3M-Cloud/piblin-kmd/issues"
-Changelog = "https://github.com/3M-Cloud/piblin-kmd/blob/main/CHANGELOG.md"
+Source = "https://github.com/3mcloud/cwest-polymer"
+Issues = "https://github.com/3mcloud/cwest-polymer/issues"
 
 [project.optional-dependencies]
 tests = [

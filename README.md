@@ -12,11 +12,11 @@ This python package is used for reading, analyzing, and interpretting polymer sp
 fractional mass remainder (fmr), a generalized kendrick mass defect (KMD) algorithm. Using circular 
 distance metrics with cluster analysis, we can classify polymer groups rapidly and effectively. 
 
-`cwest-polymer` (Welsh for "polymer quest") uses the data science python package [`piblin` (Welsh for 
+[`cwest-polymer` (Cymraeg for "polymer quest")](https://pypi.org/project/cwest-polymer/) uses the data science python package [`piblin` (Cymraeg for 
 "pipeline")](https://pypi.org/project/piblin/), which is able to comprehensively capture analytical data from a variety 
 of sources along with their metadata. `cwest-polymer` shows a basic implementations of file readers and transforms for 
 polymer analysis, but can be extended to include more complex data processing and analysis pipelines, to determine polymer groupings. Further examples
-of piblin implementations can be found in the [`hermes rheo` a rheological data analysis package](https://pypi.org/project/hermes-rheo/).
+of piblin implementations can be found in [`hermes rheo`, a rheological data analysis package](https://pypi.org/project/hermes-rheo/).
 
 More details on these concepts can be found in the reprint below. This includes literature references to KMD for futher
 background as well.
