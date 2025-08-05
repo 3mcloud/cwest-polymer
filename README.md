@@ -8,14 +8,14 @@
 [![PyPI Version][pypi-image]][pypi-url] [![pypi download][pypi-download]][pypi-url] 
 [![DOI](https://zenodo.org/badge/851879885.svg)](https://doi.org/10.5281/zenodo.16746435)
 
-This python package used for reading, analyzing, and interpretting polymer species within mass spectrometry data using 
-fractional mass remainder (fmr), a generalized kendrick mass defect (KMD) algorithm. This is done using circular 
-distance metrics with cluster analysis to classify polymer groups more efficiently. 
+This python package is used for reading, analyzing, and interpretting polymer species within mass spectrometry data using 
+fractional mass remainder (fmr), a generalized kendrick mass defect (KMD) algorithm. Using circular 
+distance metrics with cluster analysis, we can classify polymer groups rapidly and effectively. 
 
-`cwest-polymer` (Welsh for "polymer quest") uses the data science python package[`piblin` (Welsh for 
+`cwest-polymer` (Welsh for "polymer quest") uses the data science python package [`piblin` (Welsh for 
 "pipeline")](https://pypi.org/project/piblin/), which is able to comprehensively capture analytical data from a variety 
-of sources along with their metadata. This packages shows basic implementations of file readers and transforms for 
-polymer analysis, but can be extended to include more complex data processing and analysis pipelines. Further examples
+of sources along with their metadata. `cwest-polymer` shows a basic implementations of file readers and transforms for 
+polymer analysis, but can be extended to include more complex data processing and analysis pipelines, to determine polymer groupings. Further examples
 of piblin implementations can be found in the [`hermes rheo` a rheological data analysis package](https://pypi.org/project/hermes-rheo/).
 
 More details on these concepts can be found in the reprint below. This includes literature references to KMD for futher
