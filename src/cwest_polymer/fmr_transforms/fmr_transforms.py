@@ -1,6 +1,7 @@
 """FMR data transformation module.
 
 This module provides transformers for processing Fractional Mass Remainder (FMR) data.
+
 Utility and Distance functions:
     convert_formula_to_mass:
         Convert chemical formulas to masses using molmass package.
@@ -9,7 +10,13 @@ Utility and Distance functions:
         Calculate PPM-based metrics for mass comparisons. This approach uses the average mass of two values to calculate
         the error based on PPM and m/z tolerances.
 
-Calculation and cluster transformations:
+    sort_cluster_by:
+        Sort clusters by various criteria
+
+    update_clusters:
+        Update cluster order based on mass values and minimum size criteria
+
+Piblin Transformations:
     FractionalMRTransform:
         Transform measurement data based on FMR values and repeat unit calculations.
 
@@ -17,21 +24,18 @@ Calculation and cluster transformations:
         Cluster mass spectrometry data based on FMR values. DBsCAN is used for clustering, calling the custom PPM
         metric.
 
-Piblin Utility Transformations:
+    CalculatePolymerGroups:
+        Calculate polymer group statistics for each cluster in FMR datasets.
+
     FilterByClusterSize:
         Filter clusters based on cluster size and abundance
-
-    sort_cluster_by:
-        Sort clusters by various criteria
-
-    update_clusters:
-        Update cluster order based on mass values and minimum size criteria
 """
 
 from sklearn.cluster import DBSCAN
 from typing import List, Union, Dict
 from molmass import Formula
 import numpy as np
+from fnmatch import fnmatch
 from piblin.data import Measurement, MeasurementSet, Dataset
 from piblin.transform import MeasurementSetTransform, DatasetTransform
 from .. import fmr_parameters as p
@@ -39,14 +43,17 @@ from ..fmr_parameters import DEFAULT_REPEAT_UNITS
 from ..fmr_classes.fmr_datasets import FractionalMRDataset as FmrDataset
 
 
+### Utility and Distance functions ###
+
+
 def convert_formula_to_mass(formula: str):
     """
-    checks valid formula based on molmass package and returns monoisotopic value
+    Function used by checks valid formula based on molmass package and returns monoisotopic value
     """
     try:
         return float(Formula(formula).monoisotopic_mass)
-    except Exception:
-        raise ValueError(f"Formula {formula} could not be converted to mass")
+    except Exception as e:
+        raise ValueError(f"Formula {formula} could not be converted to mass: {e}")
 
 
 def ppm_metric(
@@ -92,25 +99,13 @@ def sort_cluster_by(
         abundance: np.array = None,
 ):
     """
-    Sorts clusters by their abundance or size. If abundance is not provided, it defaults to an array of ones.
-
-    Parameters
-    ----------
-    clusters : np.array
-        Array of cluster labels to be sorted.
-    abundance : np.array, optional
-        Array of abundance values corresponding to each cluster. Default is None.
-
-    Returns
-    -------
-    np.array New array of sorted cluster labels.
+    Sort cluster labels based on abundance values, if provided. Otherwise, sort by the count of features in each cluster.
     """
-
     if abundance is None:
         abundance = np.ones(len(clusters))
 
-    unique_clusters = list(set(clusters))
-    abundance_array = np.transpose([unique_clusters, np.zeros(len(unique_clusters)), np.zeros(len(unique_clusters))])
+    unique_clusters = [x for x in list(set(clusters)) if x not in p.UNCLUSTERED_LABELS]
+    abundance_array = np.array([unique_clusters, np.zeros(len(unique_clusters)), np.zeros(len(unique_clusters))]).T
     for cluster in unique_clusters:
         count = abundance[clusters == cluster].sum()
         abundance_array[abundance_array[:, 0] == cluster, 1] = count
@@ -131,23 +126,7 @@ def update_clusters(
         ru: float = None
 ):
     """
-    Updates the cluster labels based on the mass values and minimum size criteria. If the cluster size is less than the
-    minimum size, it assigns a new cluster label.
-
-    Parameters
-    ----------
-    clusters : np.array
-        Array of cluster labels to be updated.
-    masses : np.array
-        Array of mass values corresponding to each cluster.
-    min_size : int
-        Minimum size threshold for clusters.
-    ru : float, optional
-        Repeat unit value for mass normalization. Default is None.
-
-    Returns
-    -------
-    np.array Updated array of cluster labels.
+    Update clusters based on number of features in a group.
     """
     if ru is None:
         km_values = masses
@@ -155,7 +134,8 @@ def update_clusters(
         km_values = masses * round(ru) / ru
 
     new_clusters = clusters
-    for cluster in set(clusters):
+    unique_clusters = [x for x in list(set(clusters)) if x not in p.UNCLUSTERED_LABELS]
+    for cluster in unique_clusters:
         if not np.isnan(cluster):
             cluster_km = km_values[clusters == cluster]
             size1 = len(set(np.round(cluster_km)))
@@ -164,36 +144,18 @@ def update_clusters(
             if min(size1, size2) < min_size:
                 new_clusters[clusters == cluster] = -1
 
-    result = np.zeros(shape=clusters.shape, dtype=np.int_)
-    c = max(clusters)
-    for n, value in enumerate(clusters):
-        if value == -1:
-            c += 1
-            result[n] = c
-        else:
-            result[n] = value
-    return result
+    return new_clusters
 
 
 class FractionalMRTransform(MeasurementSetTransform):
-    """A transform class for calculating Fractional Mass Remainder (FMR) values.
-
-    This transform calculates FMR values for mass spectrometry data by dividing masses by repeat unit values.
-    FMR values are calculated as (mass / repeat_unit) % 1, resulting in values between 0 and 1.
-
-    The transform supports:
-    - Multiple repeat units specified as formulas or masses
-    - Fractional repeat units which are applied to all repeat units (e.g., RU/2, RU/3)
-    - Option to add Kendrick Mass Defect (KMD) calculations
-    - Default repeat units from package parameters
-
+    """
+    Transform based repeat unit to generate fmr calculations within fmr datasets.
     """
     def __init__(self, data_independent_parameters: List[object] = None, *args, **kwargs):
         req = 1
         if len(data_independent_parameters) != req:
             raise ValueError(
-                f"Incorrect number of data-independent parameter passed to transform (needs {req}): "
-                f"{len(data_independent_parameters)} given"
+                f"Incorrect number of data-independent parameter passed to transform (needs {req}): {len(data_independent_parameters)} given"
             )
 
         self._repeat_units_values: Dict[str, float] = data_independent_parameters[0]
@@ -206,29 +168,6 @@ class FractionalMRTransform(MeasurementSetTransform):
             default_list: bool = True,
             kmd: bool = False,
     ):
-        """ Method used to create the piblin FractionalMRTransform, which can be applied FMR MeasurementSet.
-
-        This method effectively builds a comprehensive list of repeat units including fractions and optional Kendrick
-        Mass Defect calculations.
-
-        Overview:
-        1. Creates an empty repeat unit list if no repeat units provided, accepts input as formula (string), repeat
-        unit values (float), a list, or dictionary thereof.
-        2. Converts repeat units to mass values (using formulas if given), processes default units if enabled.
-        3. Validates fractional values (positive integers only) and creates fractional versions of each repeat unit.
-        4. Returns new FractionalMRTransform with processed repeat unit dictionary, including optional KMD calculations.
-
-        Parameters
-        ----------
-        repeat_units : Union[str, float, List, Dict[str, Union[str, float]]], optional
-            Chemical formulas or masses to use as repeat units.
-        fractional_values : Union[int, List[int]], default=1
-            List of fractional values for fractional repeat units.
-        default_list : bool, default=True
-            Whether to include default repeat units from package parameters.
-        kmd : bool, default=False
-            Whether to calculate Kendrick Mass Defect values.
-        """
         if repeat_units is None:
             repeat_units = []
 
@@ -273,7 +212,7 @@ class FractionalMRTransform(MeasurementSetTransform):
 
         # add kmd values if true
         if kmd is True:
-            final_rus.update({f"{k}_k": v/round(v) for k, v in temp_dict.items()})
+            final_rus.update({f"{k}_k": v / round(v) for k, v in temp_dict.items()})
 
         return FractionalMRTransform(data_independent_parameters=[final_rus])
 
@@ -287,7 +226,8 @@ class FractionalMRTransform(MeasurementSetTransform):
 
                 else:
                     for ru_str, ru_value in self._repeat_units_values.items():
-                        properties = dict(zip(dataset.data_array_names,dataset.data_arrays))
+                        properties = dataset.to_dict()
+                        properties.pop(p.CMPD_LABEL)
                         properties.pop(p.MASS_LIST_LABEL)
                         properties.pop(p.CLUSTER_LABEL)
                         properties.pop(p.FMR_LABEL)
@@ -320,18 +260,8 @@ class FractionalMRTransform(MeasurementSetTransform):
 
 
 class ClusterTransform(MeasurementSetTransform):
-    """A transform class for clustering mass spectrometry data based on FMR values.
-
-    This transform performs density-based clustering (DBSCAN) on mass/FMR pairs using a custom PPM-based metric.
-    Clusters are formed based on mass accuracy (PPM tolerance), m/z tolerance, and minimum cluster size criteria.
-
-    The clustering process:
-    1. Sorts data points by FMR values
-    2. Applies DBSCAN with custom PPM metric
-    3. Updates cluster labels based on size criteria
-    4. Sorts clusters by abundance
-
-    Input datasets must be a measurementset composed of FractionalMRDataset instances with FMR values calculated.
+    """
+    Transform data into clusters based on DBSCAN cluster algorithm using FMR values and PPM/mz tolerances.
     """
     def __init__(self, data_independent_parameters: List[object] = None, *args, **kwargs):
         req = 4
@@ -349,21 +279,6 @@ class ClusterTransform(MeasurementSetTransform):
 
     @staticmethod
     def create(mz_tol: float, ppm_tol: float, min_samples: int, eps: float = 1):
-        """ Method used to create the piblin ClusterTransform, which can be applied to FMR MeasurementSet.
-
-        Parameters
-        ----------
-        mz_tol : float
-            m/z tolerance value in Da.
-        ppm_tol : float
-            PPM tolerance value.
-        min_samples : int
-            Minimum number of samples required to form a cluster.
-        eps : float, default=1
-            The maximum relative distance between two samples for one to be considered as in the neighborhood of the
-            other.
-
-        """
         return ClusterTransform(data_independent_parameters=[mz_tol, ppm_tol, min_samples, eps])
 
     def _apply(self, target: MeasurementSet, **kwargs):
@@ -374,12 +289,12 @@ class ClusterTransform(MeasurementSetTransform):
                 ru = measurement.conditions[p.CONDITION_RU_LABEL]
                 if not isinstance(dataset, FmrDataset):
                     continue
-                mass_values = dataset.data_arrays[dataset.data_array_names.index(p.MASS_LIST_LABEL)]
-                fmr_values = dataset.data_arrays[dataset.data_array_names.index(p.FMR_LABEL)]
-                if p.ABUNDANCE_LABEL in dataset.data_array_names:
-                    abundance = dataset.data_arrays[dataset.data_array_names.index(p.ABUNDANCE_LABEL)]
-                else:
-                    abundance = None
+
+                data_arrays = dataset.data_arrays
+                data_array_names = dataset.data_array_names
+                mass_values = data_arrays[data_array_names.index(p.MASS_LABEL)]
+                fmr_values = data_arrays[data_array_names.index(p.FMR_LABEL)]
+                abundance = data_arrays[data_array_names.index(p.ABUNDANCE_LABEL)]
 
                 x = np.array([mass_values, fmr_values]).T
 
@@ -401,7 +316,9 @@ class ClusterTransform(MeasurementSetTransform):
                 cluster = update_clusters(clusters=cluster, masses=mass_values, min_size=self._min_samples, ru=ru)
                 cluster = sort_cluster_by(cluster, abundance)
 
+                # update clusters and filter unclustered points by default
                 dataset.data_arrays[dataset.data_array_names.index(p.CLUSTER_LABEL)] = cluster
+                dataset.remove_clusters()
 
                 details = measurement.details
                 details['alignment parameters'] = self._align_params
@@ -413,16 +330,8 @@ class ClusterTransform(MeasurementSetTransform):
 
 
 class FilterByClusterSize(DatasetTransform):
-    """A transform class for filtering clusters based on size and abundance criteria.
-
-    This transform removes clusters that don't meet minimum size requirements or are in a specified removal list.
-    It updates the filter status of points in removed clusters while preserving the original cluster assignments.
-
-    The filtering process:
-    1. Checks each cluster's size against minimum sample threshold
-    3. Updates filter flags for specified cluster numbers in the FMR datasets
-
-    Input datasets must be FractionalMRDataset instances with cluster assignments.
+    """
+    Filter clusters based on minimum cluster size and remove list. Recommended to use cluster size OR specified remove list.
     """
     def __init__(self, data_independent_parameters: List[object] = None, *args, **kwargs):
         req = 2
@@ -443,20 +352,149 @@ class FilterByClusterSize(DatasetTransform):
         return FilterByClusterSize(data_independent_parameters=[min_samples, remove_list])
 
     def _apply(self, target: Dataset, **kwargs):
+        # check for fmr dataset
         if not isinstance(target, FmrDataset):
             return target
 
+        # get data arrays and unique clusters
         filter_list = target.data_arrays[target.data_array_names.index(p.FILTER_LABEL)]
         clusters = target.data_arrays[target.data_array_names.index(p.CLUSTER_LABEL)]
+        unique_clusters = [x for x in np.unique(clusters) if x not in p.UNCLUSTERED_LABELS]
 
-        unique_clusters = np.unique(clusters)
+        # remove based on mass indices
+        if self._remove_list is not None:
+            filter_list[self._remove_list] = 1
 
-        remove_list = self._remove_list
-
+        # remove based on cluster size
         for cluster in unique_clusters:
-            if (len(np.where(clusters == cluster)[0]) < self._min_samples) and (cluster not in remove_list):
-                remove_list = np.concat([remove_list, np.array([cluster])])
+            if len(np.where(clusters == cluster)[0]) < self._min_samples:
                 filter_list[np.where(clusters == cluster)[0]] = 1
 
         target.data_arrays[target.data_array_names.index(p.FILTER_LABEL)] = filter_list
         return target
+
+
+class CalculatePolymerGroups(MeasurementSetTransform):
+    """
+    Calculate polymer group statistics for each cluster in FMR datasets, including Mn, Mw, Dispersion, End-group, etc.
+    """
+    def __init__(self, data_independent_parameters: List[object] = None, *args, **kwargs):
+        req = 1
+        if len(data_independent_parameters) != req:
+            raise ValueError(
+                f"Incorrect number of data-independent parameter passed to transform (needs {req}): {len(data_independent_parameters)} given"
+            )
+        self._ignore_list = data_independent_parameters[0]
+
+        super().__init__(data_independent_parameters, *args, **kwargs)
+
+    @staticmethod
+    def create(ignore_list: List[str | float] = None):
+        return CalculatePolymerGroups(data_independent_parameters=[ignore_list])
+
+    def _apply(self, target: MeasurementSet, **kwargs) -> Dict[int, Dict[str, Union[str, float]]]:
+        # track results and file names
+        calculated_values = {}
+        file_names = []
+
+        # calculate polymer groups for each repeat unit i.e. measurement
+        for measurement in target.measurements:
+            temp_values = {}
+            temp_values.update(measurement.conditions)
+
+            # get file name and track unique names
+            file_name = measurement.conditions.get('file_name', None)
+            if file_name is None:
+                file_name = measurement.details.get('source_filename', None)
+            if file_name is None:
+                file_name = f'file_{len(file_names)}'
+            file_names.append(file_name)
+            file_names = list(set(file_names))
+
+            ru_label, ru_value = measurement.details.get(p.DETAIL_RU_LABEL, (None, None))
+
+            temp_values.update({
+                'repeat_unit_label': ru_label,
+            })
+
+            if ru_value is None:
+                measurement.details.get(p.CONDITION_RU_LABEL, None)
+
+            if ru_value is None:
+                print(f"This transform requires a repeat unit {file_name}")
+                continue
+
+            # skip if in ignore list
+            if self._ignore_list is not None:
+                if any(fnmatch(ru_label, f"{x}*") for x in self._ignore_list) or (ru_value in self._ignore_list):
+                    print(f"Skipping calculation of polymer groups for {ru_label}: {file_name}")
+                    continue
+
+            # find FMR datasets in the measurement - should be 1:1
+            for dataset in measurement.datasets:
+                # handle incorrect datasets
+                if not isinstance(dataset, FmrDataset):
+                    print(f"This transform requires a FractionalMRDataset {file_name}")
+                    continue
+                # Retrieve data arrays
+                data_arrays = dataset.data_arrays
+                data_array_names = dataset.data_array_names
+                mass_list = data_arrays[data_array_names.index(p.MASS_LIST_LABEL)]
+                rt_list = data_arrays[data_array_names.index(p.RT_LABEL)]
+                abundance = data_arrays[data_array_names.index(p.ABUNDANCE_LABEL)]
+                clusters = data_arrays[data_array_names.index(p.CLUSTER_LABEL)]
+                # handle none values
+                if abundance is None:
+                    abundance = np.ones(len(mass_list))
+                if rt_list is None:
+                    rt_list = np.array([np.nan] * len(mass_list))
+
+                unique_clusters = np.array([x for x in np.unique(clusters) if x not in p.UNCLUSTERED_LABELS])
+
+                # calculate each polymer group
+                for cluster in unique_clusters:
+                    # select points in the specific group
+                    cmpd_idx = np.where(clusters == cluster)[0]
+                    cluster_mass = mass_list[cmpd_idx]
+                    cluster_rt = rt_list[cmpd_idx]
+                    cluster_abundance = abundance[cmpd_idx]
+
+                    # calculate mp, mn, mw...
+                    mp = cluster_mass[np.argmax(cluster_abundance)]
+
+                    n = cluster_abundance / sum(cluster_abundance)
+                    mn = (cluster_mass * n).sum()
+                    mw = (cluster_mass ** 2 * n).sum() / mn
+                    mz = (cluster_mass ** 3 * n).sum() / (mn * mw)
+
+                    poly_disp = mw / mn
+
+                    # calculate end-group, mass_min, mass_max, rt_min, rt_max
+                    end_groups = np.mod(cluster_mass, ru_value)
+                    end_group = end_groups.mean()
+                    end_group_sd = end_groups.std()
+                    mass_min = min(cluster_mass)
+                    mass_max = max(cluster_mass)
+                    rt_min = min(cluster_rt)
+                    rt_max = max(cluster_rt)
+
+                    # add to temp values
+                    temp_values.update({
+                        'n': len(cmpd_idx),
+                        'mp': mp,
+                        'mn': mn,
+                        'mw': mw,
+                        'mz': mz,
+                        'pd': poly_disp,
+                        'end_group': end_group,
+                        'end_group_sd': end_group_sd,
+                        'mass_min': mass_min,
+                        'mass_max': mass_max,
+                        'rt_min': rt_min,
+                        'rt_max': rt_max,
+                    })
+                    # add to final values
+                    calculated_values[(file_name, ru_value, int(cluster))] = temp_values.copy()
+
+        # return dict of values
+        return calculated_values

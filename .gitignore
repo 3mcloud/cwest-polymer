@@ -1,5 +1,6 @@
 /dist/
 /build/
 *pycache*
-.idea/
-*.egg-info*
+.idea
+/src/cwest_polymer.egg-info/
+
