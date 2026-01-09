@@ -25,7 +25,9 @@ DEFAULT_REPEAT_UNITS = {
     "Nylon 6 6": "C12 H22 N2 O2",
 }
 
+CUSTOM_COLUMNS = 'custom_columns'
 # standardized labels for data arrays
+CMPD_LABEL = 'cmpd'
 MASS_LABEL = 'mass'
 MZ_LABEL = 'mz'
 RT_LABEL = 'rt'
@@ -37,9 +39,8 @@ FILTER_LABEL = 'filtered'
 FMR_LABEL = 'fmr_list'
 CLUSTER_LABEL = 'clusters'
 
-CUSTOM_COLUMNS = 'custom_columns'
-
 # unit names for data arrays
+CMPD_UNIT_LABEL = 'count'
 MASS_UNIT = 'Da'
 RT_UNIT = 'min'
 ABUNDANCE_UNIT = 'AU'
@@ -64,11 +65,13 @@ COLUMN_UPDATE_DICT = {
 ACCEPTED_COLUMN_HEADERS = list(COLUMN_UPDATE_DICT.keys())
 RESULT_COLUMN_HEADERS = list(COLUMN_UPDATE_DICT.values())
 
-# DATASET: used to create standardized piblin dataset
-PARAMETER_LABELS = [MASS_LIST_LABEL, MASS_LABEL, MZ_LABEL, RT_LABEL, X_LABEL, Y_LABEL, ABUNDANCE_LABEL, FILTER_LABEL,
-                    CLUSTER_LABEL, FMR_LABEL]
 
-PARAMETER_UNITS = [MASS_UNIT, MASS_UNIT, MASS_UNIT, RT_UNIT, '', '', ABUNDANCE_UNIT, '', CLUSTER_UNIT, MASS_LABEL]
+# DATASET: used to create standardized piblin dataset
+PARAMETER_LABELS = [CMPD_LABEL, MASS_LIST_LABEL, MASS_LABEL, MZ_LABEL, RT_LABEL, X_LABEL, Y_LABEL, ABUNDANCE_LABEL,
+                    FILTER_LABEL, CLUSTER_LABEL, FMR_LABEL]
+
+PARAMETER_UNITS = [CMPD_UNIT_LABEL, MASS_UNIT, MASS_UNIT, MASS_UNIT, RT_UNIT, '', '', ABUNDANCE_UNIT, '', CLUSTER_UNIT,
+                   MASS_UNIT]
 UNITS_DICT = dict(zip(PARAMETER_LABELS, PARAMETER_UNITS))
 SOURCE = 'Spreadsheet containing mass spectral data was read for fractional MR polymer analysis'
 
@@ -78,3 +81,5 @@ DETAIL_RU_LABEL = 'repeat_unit_information'
 
 # default name for repeat units if float is given instead of string
 RU_LABEL = "RU"
+
+UNCLUSTERED_LABELS = [-1]
