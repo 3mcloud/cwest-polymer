@@ -1,4 +1,12 @@
+[pypi-image]: https://badge.fury.io/py/cwest-polymer.svg
+[pypi-url]: https://pypi.org/project/cwest-polymer/
+[pypi-download]: https://static.pepy.tech/badge/cwest-polymer
+[docs-image]: https://img.shields.io/badge/docs-latest-blue
+
 # 'cwest-polymer' Polymer Analysis Package
+
+[![PyPI Version][pypi-image]][pypi-url] [![pypi download][pypi-download]][pypi-url] 
+[![DOI](https://zenodo.org/badge/851879885.svg)](https://doi.org/10.5281/zenodo.16746435)
 
 This python package used for reading, analyzing, and interpretting polymer species within mass spectrometry data using 
 fractional mass remainder (fmr), a generalized kendrick mass defect (KMD) algorithm. This is done using circular 
