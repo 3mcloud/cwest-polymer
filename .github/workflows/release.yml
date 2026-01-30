@@ -37,7 +37,7 @@ jobs:
         run: python -m twine upload --username "__token__" --password ${{ secrets.TWINE_TOKEN }} --verbose dist/*
 
       - name: Create release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b
         with:
           artifactErrorsFailBuild: true
           artifacts: "./dist/*"
